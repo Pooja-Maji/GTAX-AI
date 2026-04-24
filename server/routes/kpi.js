@@ -8,7 +8,7 @@ router.get("/kpis", async (req, res) => {
     const kpis = await KPI.find();
     res.status(200).json(kpis);
   } catch (error) {
-    res.status(404).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 

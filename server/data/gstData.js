@@ -13,6 +13,77 @@ export const invoices = [
   { _id: "inv012", invoiceNumber: "INV-2024-0074", gstin: "29AAACT2345V1Z5", vendorName: "TechParts India Ltd", date: "2024-02-14", taxableAmount: 22100, cgst: 1989, sgst: 1989, igst: 0, totalAmount: 26078, status: "matched", confidenceScore: 85 },
 ];
 
+export const gstr2b = [];
+
+// Mutate in-place — routes imported these array references at startup.
+// splice keeps the same reference alive so all importers see the new rows.
+export function setInvoices(newRows) {
+  invoices.splice(0, invoices.length, ...newRows);
+}
+
+export function setGstr2b(newRows) {
+  gstr2b.splice(0, gstr2b.length, ...newRows);
+}
+
+// Derives all chart data from whatever is currently in the invoices array.
+// Called by summary.js on every GET so the response always reflects uploads.
+const MONTH_ORDER = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+export function getComputedSummary() {
+  const matched    = invoices.filter((i) => i.status === "matched").length;
+  const mismatched = invoices.filter((i) => i.status === "mismatch").length;
+  const pending    = invoices.filter((i) => i.status === "pending").length;
+  const total      = invoices.length;
+
+  const totalITC   = invoices.reduce((s, i) => s + (Number(i.cgst) + Number(i.sgst) + Number(i.igst)), 0);
+  const itcAtRisk  = invoices
+    .filter((i) => i.status === "mismatch")
+    .reduce((s, i) => s + (Number(i.cgst) + Number(i.sgst) + Number(i.igst)), 0);
+  const gstPayable = invoices.reduce((s, i) => s + Number(i.taxableAmount) * 0.18, 0);
+  const healthScore = total > 0 ? Math.round((matched / total) * 100) : 0;
+
+  // Monthly reconciliation buckets
+  const reconMap = {};
+  invoices.forEach((inv) => {
+    const month = new Date(inv.date).toLocaleString("en-IN", { month: "short" });
+    if (!reconMap[month]) reconMap[month] = { month, matched: 0, mismatch: 0, pending: 0 };
+    if (inv.status === "matched")       reconMap[month].matched++;
+    else if (inv.status === "mismatch") reconMap[month].mismatch++;
+    else                                reconMap[month].pending++;
+  });
+  const monthlyReconciliation = Object.values(reconMap).sort(
+    (a, b) => MONTH_ORDER.indexOf(a.month) - MONTH_ORDER.indexOf(b.month)
+  );
+
+  // ITC risk trend buckets
+  const itcMap = {};
+  invoices
+    .filter((i) => i.status === "mismatch")
+    .forEach((inv) => {
+      const month = new Date(inv.date).toLocaleString("en-IN", { month: "short" });
+      if (!itcMap[month]) itcMap[month] = { month, amount: 0 };
+      itcMap[month].amount += Number(inv.cgst) + Number(inv.sgst) + Number(inv.igst);
+    });
+  const itcRiskTrend = Object.values(itcMap).sort(
+    (a, b) => MONTH_ORDER.indexOf(a.month) - MONTH_ORDER.indexOf(b.month)
+  );
+
+  return {
+    _id: "sum_computed",
+    period: "Uploaded Data",
+    totalInvoices: total,
+    matchedInvoices: matched,
+    mismatchedInvoices: mismatched,
+    pendingInvoices: pending,
+    totalITC,
+    itcAtRisk,
+    gstPayable,
+    healthScore,
+    monthlyReconciliation,
+    itcRiskTrend,
+  };
+}
+
 export const vendors = [
   { _id: "ven001", name: "Bharat Steel Works", gstin: "08AABCB3456P1Z7", complianceScore: 94, riskLevel: "Low", totalInvoices: 28, mismatchCount: 1 },
   { _id: "ven002", name: "Rajesh Traders", gstin: "27AAAPR4567L1Z8", complianceScore: 82, riskLevel: "Low", totalInvoices: 19, mismatchCount: 2 },
@@ -36,44 +107,3 @@ export const alerts = [
   { _id: "alt006", type: "ITC_MISMATCH", message: "INV-2024-0077: Royal Chemicals Co — GSTIN inactive on GST portal as of Mar 15", severity: "High", date: "2024-03-16", status: "open" },
   { _id: "alt007", type: "RECONCILE", message: "Auto-reconciliation completed: 187 matched, 41 mismatch, 20 pending out of 248 invoices", severity: "Low", date: "2024-03-15", status: "resolved" },
 ];
-
-export const gstSummary = {
-  _id: "sum001",
-  period: "Q4 FY 2024-25",
-  totalInvoices: 248,
-  matchedInvoices: 187,
-  mismatchedInvoices: 41,
-  pendingInvoices: 20,
-  totalITC: 840000,
-  itcAtRisk: 120000,
-  gstPayable: 370000,
-  healthScore: 72,
-  monthlyReconciliation: [
-    { month: "Apr", matched: 14, mismatch: 4, pending: 2 },
-    { month: "May", matched: 17, mismatch: 3, pending: 1 },
-    { month: "Jun", matched: 19, mismatch: 5, pending: 2 },
-    { month: "Jul", matched: 21, mismatch: 6, pending: 3 },
-    { month: "Aug", matched: 18, mismatch: 4, pending: 2 },
-    { month: "Sep", matched: 20, mismatch: 5, pending: 1 },
-    { month: "Oct", matched: 22, mismatch: 3, pending: 2 },
-    { month: "Nov", matched: 16, mismatch: 6, pending: 3 },
-    { month: "Dec", matched: 19, mismatch: 4, pending: 1 },
-    { month: "Jan", matched: 23, mismatch: 3, pending: 2 },
-    { month: "Feb", matched: 18, mismatch: 5, pending: 1 },
-    { month: "Mar", matched: 20, mismatch: 3, pending: 0 },
-  ],
-  itcRiskTrend: [
-    { month: "Apr", amount: 8200 },
-    { month: "May", amount: 12400 },
-    { month: "Jun", amount: 9800 },
-    { month: "Jul", amount: 15600 },
-    { month: "Aug", amount: 11200 },
-    { month: "Sep", amount: 18400 },
-    { month: "Oct", amount: 14200 },
-    { month: "Nov", amount: 21000 },
-    { month: "Dec", amount: 16800 },
-    { month: "Jan", amount: 12400 },
-    { month: "Feb", amount: 18600 },
-    { month: "Mar", amount: 12000 },
-  ],
-};

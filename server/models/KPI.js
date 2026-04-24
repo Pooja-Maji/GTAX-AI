@@ -1,84 +1,15 @@
-import mongoose from "mongoose";
-import { loadType } from "mongoose-currency";
+import express from "express";
+import KPI from "../models/KPI.js";
 
-const Schema = mongoose.Schema;
-loadType(mongoose);
+const router = express.Router();
 
-const daySchema = new Schema(
-  {
-    date: String,
-    revenue: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    expenses: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-  },
-  { toJSON: { getters: true } }
-);
+router.get("/kpis", async (req, res) => {
+  try {
+    const kpis = await KPI.find();
+    res.status(200).json(kpis);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-const monthSchema = new Schema(
-  {
-    month: String,
-    revenue: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    expenses: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    operationalExpenses: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    nonOperationalExpenses: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-  },
-  { toJSON: { getters: true } }
-);
-
-const KPISchema = new Schema(
-  {
-    totalProfit: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    totalRevenue: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    totalExpenses: {
-      type: mongoose.Types.Currency,
-      currency: "USD",
-      get: (v) => v / 100,
-    },
-    expensesByCategory: {
-      type: Map,
-      of: {
-        type: mongoose.Types.Currency,
-        currency: "USD",
-        get: (v) => v / 100,
-      },
-    },
-    monthlyData: [monthSchema],
-    dailyData: [daySchema],
-  },
-  { timestamps: true, toJSON: { getters: true } }
-);
-
-const KPI = mongoose.model("KPI", KPISchema);
-
-export default KPI;
+export default router;
